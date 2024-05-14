@@ -43,7 +43,7 @@ public abstract class AbstractDelayedDeliveryTracker implements DelayedDeliveryT
     // Last time the TimerTask was triggered for this class
     private long lastTickRun;
 
-    protected long tickTimeMillis;
+    protected long tickTimeMillis; // 时间轮一个格子的时间，默认一秒
 
     protected final Clock clock;
 

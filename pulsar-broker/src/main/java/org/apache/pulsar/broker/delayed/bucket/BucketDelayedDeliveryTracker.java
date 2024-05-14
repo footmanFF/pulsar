@@ -612,7 +612,7 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
                                 lastDelayedIndex = indexList.get(indexList.size() - 1);
                         this.snapshotSegmentLastIndexTable.put(lastDelayedIndex.getLedgerId(),
                                 lastDelayedIndex.getEntryId(), bucket);
-                        for (DelayedIndex index : indexList) {
+                        for (DelayedIndex index : indexList) {    // 从添加消息到sharedBucketPriorityQueue
                             sharedBucketPriorityQueue.add(index.getTimestamp(), index.getLedgerId(),
                                     index.getEntryId());
                         }
