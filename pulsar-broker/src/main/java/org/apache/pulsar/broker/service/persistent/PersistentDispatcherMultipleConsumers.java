@@ -332,9 +332,12 @@ public class PersistentDispatcherMultipleConsumers extends AbstractDispatcherMul
                 // Skip read as topic/dispatcher has exceed the dispatch rate or previous pending read hasn't complete.
                 return;
             }
-
+            
+            // 获取是否有消息需要回放，目前知道的只有延时消息
             NavigableSet<PositionImpl> messagesToReplayNow = getMessagesToReplayNow(messagesToRead);
             NavigableSet<PositionImpl> messagesToReplayFiltered = filterOutEntriesWillBeDiscarded(messagesToReplayNow);
+            
+            // 最先判断是否有延时消息需要回放，因此当有延时消息时间到达时，会优先推送延时消息
             if (!messagesToReplayFiltered.isEmpty()) {
                 if (log.isDebugEnabled()) {
                     log.debug("[{}] Schedule replay of {} messages for {} consumers", name,
