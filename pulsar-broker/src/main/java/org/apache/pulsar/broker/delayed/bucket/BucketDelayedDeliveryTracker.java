@@ -535,11 +535,18 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
         return hasMessageAvailable;
     }
 
+    /**
+     * 下一个需要发送延时消息的时间
+     * 
+     * lastMutableBucket、sharedBucketPriorityQueue 的下一个最近的时间
+     */
     @Override
     protected long nextDeliveryTime() {
         if (lastMutableBucket.isEmpty() && !sharedBucketPriorityQueue.isEmpty()) {
+            // sharedBucketPriorityQueue是排好序的，从小到大排，因此下一个消息就是第一个消息
             return sharedBucketPriorityQueue.peekN1();
         } else if (sharedBucketPriorityQueue.isEmpty() && !lastMutableBucket.isEmpty()) {
+            // 也一样
             return lastMutableBucket.nextDeliveryTime();
         }
         long timestamp = lastMutableBucket.nextDeliveryTime();
@@ -587,20 +594,17 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
             if (bucket != null && immutableBuckets.asMapOfRanges().containsValue(bucket)) {
                 // All message of current snapshot segment are scheduled, try load next snapshot segment
                 if (bucket.merging) {
-                    log.info("[{}] Skip load to wait for bucket snapshot merge finish, bucketKey:{}",
-                            dispatcher.getName(), bucket.bucketKey());
+                    log.info("[{}] Skip load to wait for bucket snapshot merge finish, bucketKey:{}", dispatcher.getName(), bucket.bucketKey());
                     break;
                 }
 
                 final int preSegmentEntryId = bucket.currentSegmentEntryId;
                 if (log.isDebugEnabled()) {
-                    log.debug("[{}] Loading next bucket snapshot segment, bucketKey: {}, nextSegmentEntryId: {}",
-                            dispatcher.getName(), bucket.bucketKey(), preSegmentEntryId + 1);
+                    log.debug("[{}] Loading next bucket snapshot segment, bucketKey: {}, nextSegmentEntryId: {}", dispatcher.getName(), bucket.bucketKey(), preSegmentEntryId + 1);
                 }
                 boolean createFutureDone = bucket.getSnapshotCreateFuture().orElse(NULL_LONG_PROMISE).isDone();
                 if (!createFutureDone) {
-                    log.info("[{}] Skip load to wait for bucket snapshot create finish, bucketKey:{}",
-                            dispatcher.getName(), bucket.bucketKey());
+                    log.info("[{}] Skip load to wait for bucket snapshot create finish, bucketKey:{}", dispatcher.getName(), bucket.bucketKey());
                     break;
                 }
 
@@ -611,18 +615,15 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
                     synchronized (BucketDelayedDeliveryTracker.this) {
                         this.snapshotSegmentLastIndexTable.remove(ledgerId, entryId);
                         if (CollectionUtils.isEmpty(indexList)) {
-                            immutableBuckets.asMapOfRanges()
-                                    .remove(Range.closed(bucket.startLedgerId, bucket.endLedgerId));
+                            immutableBuckets.asMapOfRanges().remove(Range.closed(bucket.startLedgerId, bucket.endLedgerId));
                             bucket.asyncDeleteBucketSnapshot(stats);
                             return;
                         }
-                        DelayedIndex
-                                lastDelayedIndex = indexList.get(indexList.size() - 1);
-                        this.snapshotSegmentLastIndexTable.put(lastDelayedIndex.getLedgerId(),
-                                lastDelayedIndex.getEntryId(), bucket);
-                        for (DelayedIndex index : indexList) {    // 从添加消息到sharedBucketPriorityQueue
-                            sharedBucketPriorityQueue.add(index.getTimestamp(), index.getLedgerId(),
-                                    index.getEntryId());
+                        DelayedIndex lastDelayedIndex = indexList.get(indexList.size() - 1);
+                        this.snapshotSegmentLastIndexTable.put(lastDelayedIndex.getLedgerId(), lastDelayedIndex.getEntryId(), bucket);
+                        for (DelayedIndex index : indexList) {    
+                            // 添加消息到sharedBucketPriorityQueue
+                            sharedBucketPriorityQueue.add(index.getTimestamp(), index.getLedgerId(), index.getEntryId());
                         }
                     }
                 }).whenComplete((__, ex) -> {
@@ -630,17 +631,13 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
                         // Back bucket state
                         bucket.setCurrentSegmentEntryId(preSegmentEntryId);
 
-                        log.error("[{}] Failed to load bucket snapshot segment, bucketKey: {}, segmentEntryId: {}",
-                                dispatcher.getName(), bucket.bucketKey(), preSegmentEntryId + 1, ex);
+                        log.error("[{}] Failed to load bucket snapshot segment, bucketKey: {}, segmentEntryId: {}", dispatcher.getName(), bucket.bucketKey(), preSegmentEntryId + 1, ex);
 
                         stats.recordFailEvent(BucketDelayedMessageIndexStats.Type.load);
                     } else {
-                        log.info("[{}] Load next bucket snapshot segment finish, bucketKey: {}, segmentEntryId: {}",
-                                dispatcher.getName(), bucket.bucketKey(),
-                                (preSegmentEntryId == bucket.lastSegmentEntryId) ? "-1" : preSegmentEntryId + 1);
+                        log.info("[{}] Load next bucket snapshot segment finish, bucketKey: {}, segmentEntryId: {}", dispatcher.getName(), bucket.bucketKey(), (preSegmentEntryId == bucket.lastSegmentEntryId) ? "-1" : preSegmentEntryId + 1);
 
-                        stats.recordSuccessEvent(BucketDelayedMessageIndexStats.Type.load,
-                                System.currentTimeMillis() - loadStartTime);
+                        stats.recordSuccessEvent(BucketDelayedMessageIndexStats.Type.load, System.currentTimeMillis() - loadStartTime);
                     }
                     synchronized (this) {
                         if (timeout != null) {
