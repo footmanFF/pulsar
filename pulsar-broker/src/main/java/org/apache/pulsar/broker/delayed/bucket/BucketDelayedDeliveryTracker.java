@@ -321,26 +321,34 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
             return true;
         }
 
+        // 延时时间戳是否小于 0，是否小于截止时间，截止时间就是当前时间戳
         if (deliverAt < 0 || deliverAt <= getCutoffTime()) {
             return false;
         }
 
         boolean existBucket = findImmutableBucket(ledgerId).isPresent();
 
-        // Create bucket snapshot
+        // lastMutableBucket内数据超过限制时，创建ImmutableBucket
         if (!existBucket && ledgerId > lastMutableBucket.endLedgerId
                 && lastMutableBucket.size() >= minIndexCountPerBucket
                 && !lastMutableBucket.isEmpty()) {
             long createStartTime = System.currentTimeMillis();
             stats.recordTriggerEvent(BucketDelayedMessageIndexStats.Type.create);
+            
+            // 创建ImmutableBucket
             Pair<ImmutableBucket, DelayedIndex> immutableBucketDelayedIndexPair =
                     lastMutableBucket.sealBucketAndAsyncPersistent(
                             this.timeStepPerBucketSnapshotSegmentInMillis,
                             this.maxIndexesPerBucketSnapshotSegment,
                             this.sharedBucketPriorityQueue);
+            
+            //
             afterCreateImmutableBucket(immutableBucketDelayedIndexPair, createStartTime);
+            
+            //
             lastMutableBucket.resetLastMutableBucketRange();
 
+            // immutableBucket数量超过限制，触发合并
             if (maxNumBuckets > 0 && immutableBuckets.asMapOfRanges().size() > maxNumBuckets) {
                 asyncMergeBucketSnapshot();
             }

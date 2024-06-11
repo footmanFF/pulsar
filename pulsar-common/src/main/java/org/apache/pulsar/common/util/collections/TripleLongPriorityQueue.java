@@ -83,10 +83,8 @@ public class TripleLongPriorityQueue implements AutoCloseable {
 
     /**
      * Add a tuple of 3 long items to the priority queue.
-     *
-     * @param n1
-     * @param n2
-     * @param n3
+     * <p/>
+     * 根据n3排序，从小到大排序
      */
     public void add(long n1, long n2, long n3) {
         long arrayIdx = tuplesCount * ITEMS_COUNT;
@@ -188,6 +186,9 @@ public class TripleLongPriorityQueue implements AutoCloseable {
         }
     }
 
+    /**
+     * 堆排序，从小到大排序
+     */
     private void siftUp(long tupleIdx) {
         while (tupleIdx > 0) {
             long parentIdx = (tupleIdx - 1) / 2;
