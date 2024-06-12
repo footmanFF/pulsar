@@ -60,8 +60,8 @@ class MutableBucket extends Bucket implements AutoCloseable {
 
     /**
      * 
-     * @param timeStepPerBucketSnapshotSegment
-     * @param maxIndexesPerBucketSnapshotSegment
+     * @param timeStepPerBucketSnapshotSegment 每个segment的延时时间最长跨度，默认300秒
+     * @param maxIndexesPerBucketSnapshotSegment 每个segment数据量限制，-1代表无限制
      * @param sharedQueue
      * @param delayedIndexQueue 待写入到ImmutableBucket的延迟数据
      * @param startLedgerId MutableBucket的起始ledgerId
@@ -84,17 +84,25 @@ class MutableBucket extends Bucket implements AutoCloseable {
 
         // ImmutableBucket的所有segment
         List<SnapshotSegment> bucketSnapshotSegments = new ArrayList<>();
+        // ImmutableBucket的所有segment的元数据
         List<SnapshotSegmentMetadata> segmentMetadataList = new ArrayList<>();
+
+        // 整个bucket的bitmap ，key: ledgerId  value: bitmap(entryId)
         Map<Long, RoaringBitmap> immutableBucketBitMap = new HashMap<>();
 
-        // key: ledgerId
+        // 当前segment的bitmap，key: ledgerId  value: bitmap(entryId)
         Map<Long, RoaringBitmap> bitMap = new HashMap<>();
         // 当前循环的segment
         SnapshotSegment snapshotSegment = new SnapshotSegment();
+        
+        // segment元信息的builder
         SnapshotSegmentMetadata.Builder segmentMetadataBuilder = SnapshotSegmentMetadata.newBuilder();
 
+        // 所有segment的多个延时时间戳
         List<Long> firstScheduleTimestamps = new ArrayList<>();
+        // 当前segment可以容纳的最大延时时间戳
         long currentTimestampUpperLimit = 0;
+        // 当前segment的首个延时时间戳
         long currentFirstTimestamp = 0L;
         
         while (!delayedIndexQueue.isEmpty()) {
@@ -127,37 +135,57 @@ class MutableBucket extends Bucket implements AutoCloseable {
 
             numMessages++;
 
-            if (delayedIndexQueue.isEmpty() || delayedIndexQueue.peekTimestamp() > currentTimestampUpperLimit
-                    || (maxIndexesPerBucketSnapshotSegment != -1
-                    && snapshotSegment.getIndexesCount() >= maxIndexesPerBucketSnapshotSegment)) {
+            /*
+             * 是否停止写入当前segment
+             * 1、delayedIndexQueue无剩余数据
+             * 2、或下一条数据的延时时间已经超过了当前segment的最长跨度
+             * 3、或segment数据量达到限制
+             */
+            if (delayedIndexQueue.isEmpty() || 
+                    delayedIndexQueue.peekTimestamp() > currentTimestampUpperLimit ||
+                    (maxIndexesPerBucketSnapshotSegment != -1 && snapshotSegment.getIndexesCount() >= maxIndexesPerBucketSnapshotSegment)) {
+                // segment元信息中的最大时间戳
                 segmentMetadataBuilder.setMaxScheduleTimestamp(timestamp);
+                // segment元信息中的最小时间戳
                 segmentMetadataBuilder.setMinScheduleTimestamp(currentFirstTimestamp);
+                // 下一个segment重新开始处理，初始化「当前segment可以容纳的最大延时时间戳」
                 currentTimestampUpperLimit = 0;
-
+                
+                // key: ledgerId
                 Iterator<Map.Entry<Long, RoaringBitmap>> iterator = bitMap.entrySet().iterator();
                 while (iterator.hasNext()) {
                     final var entry = iterator.next();
+                    // ledgerId
                     final var lId = entry.getKey();
+                    // RoaringBitmap(entryId)
                     final var bm = entry.getValue();
                     bm.runOptimize();
+                    // 根据RoaringBitmap序列化后的字节数，创建ByteBuffer
                     ByteBuffer byteBuffer = ByteBuffer.allocate(bm.serializedSizeInBytes());
+                    // 将RoaringBitmap序列化到byteBuffer
                     bm.serialize(byteBuffer);
+                    // 翻转，准备写出
                     byteBuffer.flip();
+                    // 在metadata中put，ledgerId => bitmap(entryId)
                     segmentMetadataBuilder.putDelayedIndexBitMap(lId, UnsafeByteOperations.unsafeWrap(byteBuffer));
                     immutableBucketBitMap.compute(lId, (__, bm0) -> {
                         if (bm0 == null) {
                             return bm;
                         }
+                        // bitmap之前做或运算，相当于两个集合做并集
                         bm0.or(bm);
                         return bm0;
                     });
                     iterator.remove();
                 }
 
+                // 构建并添加元数据
                 segmentMetadataList.add(segmentMetadataBuilder.build());
                 segmentMetadataBuilder.clear();
-
+                
+                // 添加segment
                 bucketSnapshotSegments.add(snapshotSegment);
+                // 创建新的segment
                 snapshotSegment = new SnapshotSegment();
             }
         }
