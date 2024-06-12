@@ -332,13 +332,15 @@ public class PersistentDispatcherMultipleConsumers extends AbstractDispatcherMul
                 // Skip read as topic/dispatcher has exceed the dispatch rate or previous pending read hasn't complete.
                 return;
             }
-
+            
+            // 获取是否有消息需要回放，目前知道的只有延时消息
             NavigableSet<PositionImpl> messagesToReplayNow = getMessagesToReplayNow(messagesToRead);
             NavigableSet<PositionImpl> messagesToReplayFiltered = filterOutEntriesWillBeDiscarded(messagesToReplayNow);
+            
+            // 最先判断是否有延时消息需要回放，因此当有延时消息时间到达时，会优先推送延时消息
             if (!messagesToReplayFiltered.isEmpty()) {
                 if (log.isDebugEnabled()) {
-                    log.debug("[{}] Schedule replay of {} messages for {} consumers", name,
-                            messagesToReplayFiltered.size(), consumerList.size());
+                    log.debug("[{}] Schedule replay of {} messages for {} consumers", name, messagesToReplayFiltered.size(), consumerList.size());
                 }
 
                 havePendingReplayRead = true;
@@ -1186,7 +1188,7 @@ public class PersistentDispatcherMultipleConsumers extends AbstractDispatcherMul
     protected synchronized NavigableSet<PositionImpl> getMessagesToReplayNow(int maxMessagesToRead) {
         if (delayedDeliveryTracker.isPresent() && delayedDeliveryTracker.get().hasMessageAvailable()) {
             delayedDeliveryTracker.get().resetTickTime(topic.getDelayedDeliveryTickTimeMillis());
-            NavigableSet<PositionImpl> messagesAvailableNow =
+            NavigableSet<PositionImpl> messagesAvailableNow = // 到达时间的消息
                     delayedDeliveryTracker.get().getScheduledMessages(maxMessagesToRead);
             messagesAvailableNow.forEach(p -> redeliveryMessages.add(p.getLedgerId(), p.getEntryId()));
         }

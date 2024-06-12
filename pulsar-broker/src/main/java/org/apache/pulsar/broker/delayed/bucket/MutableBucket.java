@@ -58,31 +58,45 @@ class MutableBucket extends Bucket implements AutoCloseable {
                 TripleLongPriorityDelayedIndexQueue.wrap(priorityQueue), startLedgerId, endLedgerId);
     }
 
+    /**
+     * 
+     * @param timeStepPerBucketSnapshotSegment
+     * @param maxIndexesPerBucketSnapshotSegment
+     * @param sharedQueue
+     * @param delayedIndexQueue 待写入到ImmutableBucket的延迟数据
+     * @param startLedgerId MutableBucket的起始ledgerId
+     * @param endLedgerId MutableBucket的结束ledgerId
+     * @return
+     */
     Pair<ImmutableBucket, DelayedIndex> createImmutableBucketAndAsyncPersistent(
             final long timeStepPerBucketSnapshotSegment, final int maxIndexesPerBucketSnapshotSegment,
             TripleLongPriorityQueue sharedQueue, DelayedIndexQueue delayedIndexQueue, final long startLedgerId,
             final long endLedgerId) {
         if (log.isDebugEnabled()) {
-            log.debug("[{}] Creating bucket snapshot, startLedgerId: {}, endLedgerId: {}", dispatcherName,
-                    startLedgerId, endLedgerId);
+            log.debug("[{}] Creating bucket snapshot, startLedgerId: {}, endLedgerId: {}", dispatcherName, startLedgerId, endLedgerId);
         }
 
         if (delayedIndexQueue.isEmpty()) {
             return null;
         }
+        // 处理的消息数量
         long numMessages = 0;
 
+        // ImmutableBucket的所有segment
         List<SnapshotSegment> bucketSnapshotSegments = new ArrayList<>();
         List<SnapshotSegmentMetadata> segmentMetadataList = new ArrayList<>();
         Map<Long, RoaringBitmap> immutableBucketBitMap = new HashMap<>();
 
+        // key: ledgerId
         Map<Long, RoaringBitmap> bitMap = new HashMap<>();
+        // 当前循环的segment
         SnapshotSegment snapshotSegment = new SnapshotSegment();
         SnapshotSegmentMetadata.Builder segmentMetadataBuilder = SnapshotSegmentMetadata.newBuilder();
 
         List<Long> firstScheduleTimestamps = new ArrayList<>();
         long currentTimestampUpperLimit = 0;
         long currentFirstTimestamp = 0L;
+        
         while (!delayedIndexQueue.isEmpty()) {
             final long timestamp = delayedIndexQueue.peekTimestamp();
             if (currentTimestampUpperLimit == 0) {
@@ -91,18 +105,21 @@ class MutableBucket extends Bucket implements AutoCloseable {
                 currentTimestampUpperLimit = timestamp + timeStepPerBucketSnapshotSegment - 1;
             }
 
+            // 在snapshotSegment中，新建一条空的数据
             DelayedIndex delayedIndex = snapshotSegment.addIndexe();
+            // 用队列的第一条数据，给delayedIndex赋值
             delayedIndexQueue.popToObject(delayedIndex);
 
             final long ledgerId = delayedIndex.getLedgerId();
             final long entryId = delayedIndex.getEntryId();
 
+            // 从当前bucket的位图中删除entry
             removeIndexBit(ledgerId, entryId);
 
             checkArgument(ledgerId >= startLedgerId && ledgerId <= endLedgerId);
 
             // Move first segment of bucket snapshot to sharedBucketPriorityQueue
-            if (segmentMetadataList.size() == 0) {
+            if (segmentMetadataList.isEmpty()) {
                 sharedQueue.add(timestamp, ledgerId, entryId);
             }
 

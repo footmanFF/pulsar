@@ -56,6 +56,9 @@ abstract class Bucket {
     long startLedgerId;
     long endLedgerId;
 
+    /**
+     * key: ledgerId   value: entryId bitMap
+     */
     Map<Long, RoaringBitmap> delayedIndexBitMap;
 
     long numberBucketDelayedMessages;
