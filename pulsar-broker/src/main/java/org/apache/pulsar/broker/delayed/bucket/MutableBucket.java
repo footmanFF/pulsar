@@ -49,6 +49,14 @@ class MutableBucket extends Bucket implements AutoCloseable {
         this.priorityQueue = new TripleLongPriorityQueue();
     }
 
+    /**
+     * 封存并持久化bucket
+     * 
+     * @param timeStepPerBucketSnapshotSegment 每个segment的延时时间最长跨度，默认300秒
+     * @param maxIndexesPerBucketSnapshotSegment 每个segment数据量限制，-1代表无限制
+     * @param sharedQueue  共享队列sharedBucketPriorityQueue
+     * @return left: 新建的bucket  right: 新bucket的第一个segment的最后一条数据
+     */
     Pair<ImmutableBucket, DelayedIndex> sealBucketAndAsyncPersistent(
             long timeStepPerBucketSnapshotSegment,
             int maxIndexesPerBucketSnapshotSegment,
@@ -59,14 +67,15 @@ class MutableBucket extends Bucket implements AutoCloseable {
     }
 
     /**
+     * 创建并持久化ImmutableBucket
      * 
      * @param timeStepPerBucketSnapshotSegment 每个segment的延时时间最长跨度，默认300秒
      * @param maxIndexesPerBucketSnapshotSegment 每个segment数据量限制，-1代表无限制
-     * @param sharedQueue
+     * @param sharedQueue  共享队列sharedBucketPriorityQueue
      * @param delayedIndexQueue 待写入到ImmutableBucket的延迟数据
      * @param startLedgerId MutableBucket的起始ledgerId
      * @param endLedgerId MutableBucket的结束ledgerId
-     * @return
+     * @return left: 新建的bucket  right: 新bucket的第一个segment的最后一条数据
      */
     Pair<ImmutableBucket, DelayedIndex> createImmutableBucketAndAsyncPersistent(
             final long timeStepPerBucketSnapshotSegment, final int maxIndexesPerBucketSnapshotSegment,
@@ -194,14 +203,14 @@ class MutableBucket extends Bucket implements AutoCloseable {
         immutableBucketBitMap.values().forEach(RoaringBitmap::runOptimize);
         this.delayedIndexBitMap.values().forEach(RoaringBitmap::runOptimize);
 
+        // bucket的元数据
         SnapshotMetadata bucketSnapshotMetadata = SnapshotMetadata.newBuilder()
                 .addAllMetadataList(segmentMetadataList)
                 .build();
 
         final int lastSegmentEntryId = segmentMetadataList.size();
 
-        ImmutableBucket bucket = new ImmutableBucket(dispatcherName, cursor, sequencer, bucketSnapshotStorage,
-                startLedgerId, endLedgerId);
+        ImmutableBucket bucket = new ImmutableBucket(dispatcherName, cursor, sequencer, bucketSnapshotStorage, startLedgerId, endLedgerId);
         bucket.setCurrentSegmentEntryId(1);
         bucket.setNumberBucketDelayedMessages(numMessages);
         bucket.setLastSegmentEntryId(lastSegmentEntryId);
@@ -218,8 +227,7 @@ class MutableBucket extends Bucket implements AutoCloseable {
         DelayedIndex lastDelayedIndex = firstSnapshotSegment.getIndexeAt(firstSnapshotSegment.getIndexesCount() - 1);
         Pair<ImmutableBucket, DelayedIndex> result = Pair.of(bucket, lastDelayedIndex);
 
-        CompletableFuture<Long> future = asyncSaveBucketSnapshot(bucket,
-                bucketSnapshotMetadata, bucketSnapshotSegments);
+        CompletableFuture<Long> future = asyncSaveBucketSnapshot(bucket, bucketSnapshotMetadata, bucketSnapshotSegments);
         bucket.setSnapshotCreateFuture(future);
 
         return result;
