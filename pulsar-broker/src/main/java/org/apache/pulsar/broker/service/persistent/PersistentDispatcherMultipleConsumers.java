@@ -340,8 +340,7 @@ public class PersistentDispatcherMultipleConsumers extends AbstractDispatcherMul
             // 最先判断是否有延时消息需要回放，因此当有延时消息时间到达时，会优先推送延时消息
             if (!messagesToReplayFiltered.isEmpty()) {
                 if (log.isDebugEnabled()) {
-                    log.debug("[{}] Schedule replay of {} messages for {} consumers", name,
-                            messagesToReplayFiltered.size(), consumerList.size());
+                    log.debug("[{}] Schedule replay of {} messages for {} consumers", name, messagesToReplayFiltered.size(), consumerList.size());
                 }
 
                 havePendingReplayRead = true;
