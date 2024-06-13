@@ -303,15 +303,13 @@ public class PersistentDispatcherMultipleConsumers extends AbstractDispatcherMul
             // we cannot read more entries while sending the previous batch
             // otherwise we could re-read the same entries and send duplicates
             if (log.isDebugEnabled()) {
-                log.debug("[{}] [{}] Skipping read for the topic, Due to sending in-progress.",
-                        topic.getName(), getSubscriptionName());
+                log.debug("[{}] [{}] Skipping read for the topic, Due to sending in-progress.", topic.getName(), getSubscriptionName());
             }
             return;
         }
         if (shouldPauseDeliveryForDelayTracker()) {
             if (log.isDebugEnabled()) {
-                log.debug("[{}] [{}] Skipping read for the topic, Due to pause delivery for delay tracker.",
-                        topic.getName(), getSubscriptionName());
+                log.debug("[{}] [{}] Skipping read for the topic, Due to pause delivery for delay tracker.", topic.getName(), getSubscriptionName());
             }
             return;
         }
@@ -350,8 +348,8 @@ public class PersistentDispatcherMultipleConsumers extends AbstractDispatcherMul
                         : asyncReplayEntries(messagesToReplayFiltered);
                 // clear already acked positions from replay bucket
 
-                deletedMessages.forEach(position -> redeliveryMessages.remove(((PositionImpl) position).getLedgerId(),
-                        ((PositionImpl) position).getEntryId()));
+                deletedMessages.forEach(position -> redeliveryMessages.remove(position.getLedgerId(), position.getEntryId()));
+                
                 // if all the entries are acked-entries and cleared up from redeliveryMessages, try to read
                 // next entries as readCompletedEntries-callback was never called
                 if ((messagesToReplayFiltered.size() - deletedMessages.size()) == 0) {
@@ -360,20 +358,17 @@ public class PersistentDispatcherMultipleConsumers extends AbstractDispatcherMul
                 }
             } else if (BLOCKED_DISPATCHER_ON_UNACKMSG_UPDATER.get(this) == TRUE) {
                 if (log.isDebugEnabled()) {
-                    log.debug("[{}] Dispatcher read is blocked due to unackMessages {} reached to max {}", name,
-                            totalUnackedMessages, topic.getMaxUnackedMessagesOnSubscription());
+                    log.debug("[{}] Dispatcher read is blocked due to unackMessages {} reached to max {}", name, totalUnackedMessages, topic.getMaxUnackedMessagesOnSubscription());
                 }
             } else if (!havePendingRead && hasConsumersNeededNormalRead()) {
                 if (shouldPauseOnAckStatePersist(ReadType.Normal)) {
                     if (log.isDebugEnabled()) {
-                        log.debug("[{}] [{}] Skipping read for the topic, Due to blocked on ack state persistent.",
-                                topic.getName(), getSubscriptionName());
+                        log.debug("[{}] [{}] Skipping read for the topic, Due to blocked on ack state persistent.", topic.getName(), getSubscriptionName());
                     }
                     return;
                 }
                 if (log.isDebugEnabled()) {
-                    log.debug("[{}] Schedule read of {} messages for {} consumers", name, messagesToRead,
-                            consumerList.size());
+                    log.debug("[{}] Schedule read of {} messages for {} consumers", name, messagesToRead, consumerList.size());
                 }
                 havePendingRead = true;
                 NavigableSet<PositionImpl> toReplay = getMessagesToReplayNow(1);
@@ -389,8 +384,7 @@ public class PersistentDispatcherMultipleConsumers extends AbstractDispatcherMul
                     Predicate<PositionImpl> skipCondition = null;
                     final DelayedDeliveryTracker deliveryTracker = delayedDeliveryTracker.get();
                     if (deliveryTracker instanceof BucketDelayedDeliveryTracker) {
-                        skipCondition = position -> ((BucketDelayedDeliveryTracker) deliveryTracker)
-                                .containsMessage(position.getLedgerId(), position.getEntryId());
+                        skipCondition = position -> ((BucketDelayedDeliveryTracker) deliveryTracker).containsMessage(position.getLedgerId(), position.getEntryId());
                     }
                     cursor.asyncReadEntriesWithSkipOrWait(messagesToRead, bytesToRead, this, ReadType.Normal,
                             topic.getMaxReadPosition(), skipCondition);
