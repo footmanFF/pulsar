@@ -67,8 +67,7 @@ class ImmutableBucket extends Bucket {
         return asyncLoadNextBucketSnapshotEntry(true, cutoffTimeSupplier);
     }
 
-    private CompletableFuture<List<DelayedIndex>> asyncLoadNextBucketSnapshotEntry(boolean isRecover,
-                                                                                   Supplier<Long> cutoffTimeSupplier) {
+    private CompletableFuture<List<DelayedIndex>> asyncLoadNextBucketSnapshotEntry(boolean isRecover, Supplier<Long> cutoffTimeSupplier) {
         final long bucketId = getAndUpdateBucketId();
         final CompletableFuture<Integer> loadMetaDataFuture;
         if (isRecover) {
@@ -78,9 +77,7 @@ class ImmutableBucket extends Bucket {
             loadMetaDataFuture = executeWithRetry(() -> bucketSnapshotStorage.getBucketSnapshotMetadata(bucketId)
                     .whenComplete((___, ex) -> {
                         if (ex != null) {
-                            log.warn("[{}] Failed to get bucket snapshot metadata,"
-                                            + " bucketKey: {}, bucketId: {}",
-                                    dispatcherName, bucketKey, bucketId, ex);
+                            log.warn("[{}] Failed to get bucket snapshot metadata, bucketKey: {}, bucketId: {}", dispatcherName, bucketKey, bucketId, ex);
                         }
                     }), BucketSnapshotPersistenceException.class, MaxRetryTimes)
                     .thenApply(snapshotMetadata -> {
@@ -112,12 +109,9 @@ class ImmutableBucket extends Bucket {
             }
 
             return executeWithRetry(
-                    () -> bucketSnapshotStorage.getBucketSnapshotSegment(bucketId, nextSegmentEntryId,
-                            nextSegmentEntryId).whenComplete((___, ex) -> {
+                    () -> bucketSnapshotStorage.getBucketSnapshotSegment(bucketId, nextSegmentEntryId, nextSegmentEntryId).whenComplete((___, ex) -> {
                         if (ex != null) {
-                            log.warn("[{}] Failed to get bucket snapshot segment. bucketKey: {},"
-                                            + " bucketId: {}, segmentEntryId: {}", dispatcherName, bucketKey(),
-                                    bucketId, nextSegmentEntryId, ex);
+                            log.warn("[{}] Failed to get bucket snapshot segment. bucketKey: {}, bucketId: {}, segmentEntryId: {}", dispatcherName, bucketKey(), bucketId, nextSegmentEntryId, ex);
                         }
                     }), BucketSnapshotPersistenceException.class, MaxRetryTimes)
                     .thenApply(bucketSnapshotSegments -> {

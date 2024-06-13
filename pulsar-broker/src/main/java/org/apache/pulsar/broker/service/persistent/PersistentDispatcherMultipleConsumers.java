@@ -1188,8 +1188,8 @@ public class PersistentDispatcherMultipleConsumers extends AbstractDispatcherMul
     protected synchronized NavigableSet<PositionImpl> getMessagesToReplayNow(int maxMessagesToRead) {
         if (delayedDeliveryTracker.isPresent() && delayedDeliveryTracker.get().hasMessageAvailable()) {
             delayedDeliveryTracker.get().resetTickTime(topic.getDelayedDeliveryTickTimeMillis());
-            NavigableSet<PositionImpl> messagesAvailableNow = // 到达时间的消息
-                    delayedDeliveryTracker.get().getScheduledMessages(maxMessagesToRead);
+            // 到达时间的消息
+            NavigableSet<PositionImpl> messagesAvailableNow = delayedDeliveryTracker.get().getScheduledMessages(maxMessagesToRead);
             messagesAvailableNow.forEach(p -> redeliveryMessages.add(p.getLedgerId(), p.getEntryId()));
         }
 

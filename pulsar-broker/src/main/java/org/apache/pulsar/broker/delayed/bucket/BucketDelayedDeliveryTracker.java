@@ -94,6 +94,9 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
     @VisibleForTesting
     private final TripleLongPriorityQueue sharedBucketPriorityQueue;
 
+    /**
+     * key为一个范围的map，key: LedgerId
+     */
     @Getter
     @VisibleForTesting
     private final RangeMap<Long, ImmutableBucket> immutableBuckets;
@@ -261,16 +264,20 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
         return Optional.ofNullable(immutableBuckets.get(ledgerId));
     }
 
+    /**
+     * @param immutableBucketDelayedIndexPair  left: 新建的bucket  right: 新bucket的第一个segment的最后一条数据
+     * @param startTime  当前时间戳
+     */
     private void afterCreateImmutableBucket(Pair<ImmutableBucket, DelayedIndex> immutableBucketDelayedIndexPair,
                                             long startTime) {
         if (immutableBucketDelayedIndexPair != null) {
+            // 新建的bucket
             ImmutableBucket immutableBucket = immutableBucketDelayedIndexPair.getLeft();
-            immutableBuckets.put(Range.closed(immutableBucket.startLedgerId, immutableBucket.endLedgerId),
-                    immutableBucket);
-
+            immutableBuckets.put(Range.closed(immutableBucket.startLedgerId, immutableBucket.endLedgerId), immutableBucket);
+            
+            // 新bucket的第一个segment的最后一条数据
             DelayedIndex lastDelayedIndex = immutableBucketDelayedIndexPair.getRight();
-            snapshotSegmentLastIndexTable.put(lastDelayedIndex.getLedgerId(), lastDelayedIndex.getEntryId(),
-                    immutableBucket);
+            snapshotSegmentLastIndexTable.put(lastDelayedIndex.getLedgerId(), lastDelayedIndex.getEntryId(), immutableBucket);
 
             immutableBucket.getSnapshotCreateFuture().ifPresent(createFuture -> {
                 CompletableFuture<Long> future = createFuture.handle((bucketId, ex) -> {
@@ -335,7 +342,7 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
             long createStartTime = System.currentTimeMillis();
             stats.recordTriggerEvent(BucketDelayedMessageIndexStats.Type.create);
             
-            // 创建ImmutableBucket
+            // 保存并持久化bucket   left: 新建的bucket  right: 新bucket的第一个segment的最后一条数据
             Pair<ImmutableBucket, DelayedIndex> immutableBucketDelayedIndexPair =
                     lastMutableBucket.sealBucketAndAsyncPersistent(
                             this.timeStepPerBucketSnapshotSegmentInMillis,
@@ -568,8 +575,7 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
     public synchronized NavigableSet<PositionImpl> getScheduledMessages(int maxMessages) {
         if (!checkPendingLoadDone()) {
             if (log.isDebugEnabled()) {
-                log.debug("[{}] Skip getScheduledMessages to wait for bucket snapshot load finish.",
-                        dispatcher.getName());
+                log.debug("[{}] Skip getScheduledMessages to wait for bucket snapshot load finish.", dispatcher.getName());
             }
             return Collections.emptyNavigableSet();
         }
