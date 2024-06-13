@@ -208,6 +208,7 @@ class MutableBucket extends Bucket implements AutoCloseable {
                 .addAllMetadataList(segmentMetadataList)
                 .build();
 
+        // 看起来entryId是从1开始递增的，因此最后一个entryId可以用size()替代
         final int lastSegmentEntryId = segmentMetadataList.size();
 
         ImmutableBucket bucket = new ImmutableBucket(dispatcherName, cursor, sequencer, bucketSnapshotStorage, startLedgerId, endLedgerId);

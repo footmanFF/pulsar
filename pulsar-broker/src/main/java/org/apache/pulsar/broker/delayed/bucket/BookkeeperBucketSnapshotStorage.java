@@ -79,6 +79,13 @@ public class BookkeeperBucketSnapshotStorage implements BucketSnapshotStorage {
     @Override
     public CompletableFuture<List<SnapshotSegment>> getBucketSnapshotSegment(long bucketId, long firstSegmentEntryId,
                                                                              long lastSegmentEntryId) {
+        /*
+         * 1、先根据bucketId，也就是ledgerId，拿到ledger的读写工具类LedgerHandle
+         * 2、根据firstSegmentEntryId、lastSegmentEntryId读取entry数据
+         * 3、从读取到的entry解析出SnapshotSegment
+         * 
+         * 这里隐含了一个信息：segment是存储在一个entry上的
+         */
         return getLedgerHandle(bucketId).thenCompose(
                 ledgerHandle -> getLedgerEntry(ledgerHandle, firstSegmentEntryId, lastSegmentEntryId)
                         .thenApply(this::parseSnapshotSegmentEntries));
@@ -187,8 +194,7 @@ public class BookkeeperBucketSnapshotStorage implements BucketSnapshotStorage {
     }
 
     private CompletableFuture<LedgerHandle> getLedgerHandle(Long ledgerId) {
-        CompletableFuture<LedgerHandle> ledgerHandleCompletableFuture =
-                ledgerHandleFutureCache.computeIfAbsent(ledgerId, k -> openLedger(ledgerId));
+        CompletableFuture<LedgerHandle> ledgerHandleCompletableFuture = ledgerHandleFutureCache.computeIfAbsent(ledgerId, k -> openLedger(ledgerId));
         // remove future of completed exceptionally
         ledgerHandleCompletableFuture.whenComplete((__, ex) -> {
             if (ex != null) {

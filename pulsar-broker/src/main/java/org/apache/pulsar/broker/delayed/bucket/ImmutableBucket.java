@@ -119,8 +119,7 @@ class ImmutableBucket extends Bucket {
                             return Collections.emptyList();
                         }
 
-                        SnapshotSegment snapshotSegment =
-                                bucketSnapshotSegments.get(0);
+                        SnapshotSegment snapshotSegment = bucketSnapshotSegments.get(0);
                         List<DelayedIndex> indexList = snapshotSegment.getIndexesList();
                         this.setCurrentSegmentEntryId(nextSegmentEntryId);
                         if (isRecover) {
