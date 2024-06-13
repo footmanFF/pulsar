@@ -100,6 +100,10 @@ class ImmutableBucket extends Bucket {
                         return nextSnapshotEntryIndex + 1;
                     });
         } else {
+            /*
+             * 理解：currentSegmentEntryId是当前已经读取到的segment的entryId；
+             * 又因为在一个segment下，entryId是单调递增的，因此下一个segment的entryId就是 currentSegmentEntryId + 1
+             */
             loadMetaDataFuture = CompletableFuture.completedFuture(currentSegmentEntryId + 1);
         }
 
@@ -121,6 +125,7 @@ class ImmutableBucket extends Bucket {
 
                         SnapshotSegment snapshotSegment = bucketSnapshotSegments.get(0);
                         List<DelayedIndex> indexList = snapshotSegment.getIndexesList();
+                        // 按照currentSegmentEntryId的定义，将他+1
                         this.setCurrentSegmentEntryId(nextSegmentEntryId);
                         if (isRecover) {
                             this.asyncUpdateSnapshotLength();
@@ -169,13 +174,10 @@ class ImmutableBucket extends Bucket {
             return CompletableFuture.completedFuture(Collections.emptyList());
         }
         return executeWithRetry(() -> {
-            return bucketSnapshotStorage.getBucketSnapshotSegment(getAndUpdateBucketId(), nextSegmentEntryId,
-                    lastSegmentEntryId).whenComplete((__, ex) -> {
+            return bucketSnapshotStorage.getBucketSnapshotSegment(getAndUpdateBucketId(), nextSegmentEntryId, lastSegmentEntryId)
+                    .whenComplete((__, ex) -> {
                 if (ex != null) {
-                    log.warn(
-                            "[{}] Failed to get remain bucket snapshot segment, bucketKey: {},"
-                                    + " nextSegmentEntryId: {}, lastSegmentEntryId: {}",
-                            dispatcherName, bucketKey(), nextSegmentEntryId, lastSegmentEntryId, ex);
+                    log.warn("[{}] Failed to get remain bucket snapshot segment, bucketKey: {}, nextSegmentEntryId: {}, lastSegmentEntryId: {}", dispatcherName, bucketKey(), nextSegmentEntryId, lastSegmentEntryId, ex);
                 }
             });
         }, BucketSnapshotPersistenceException.class, MaxRetryTimes);

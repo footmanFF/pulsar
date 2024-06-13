@@ -63,8 +63,14 @@ abstract class Bucket {
 
     long numberBucketDelayedMessages;
 
+    /**
+     * bucket中，最后一个segment的entryId
+     */
     int lastSegmentEntryId;
-
+    /**
+     * 理解：当前已经读取到的segment的entryId；在一个segment下，entryId是单调递增的
+     * 因此下一个segment的entryId就是 currentSegmentEntryId + 1
+     */
     volatile int currentSegmentEntryId;
 
     volatile long snapshotLength;

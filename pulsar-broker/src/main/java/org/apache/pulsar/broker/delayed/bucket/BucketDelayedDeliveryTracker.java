@@ -101,6 +101,15 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
     @VisibleForTesting
     private final RangeMap<Long, ImmutableBucket> immutableBuckets;
 
+    /**
+     * key: LedgerId   column: entryId  value:  bucket
+     * 记录bucket的segment的最后一条数据的LedgerId和entryId，value为bucket
+     * <p/>
+     * LedgerId应该是全局唯一的，entryId在一个ledger下唯一，并且递增
+     * <p/>
+     * 没有记录bucket所有segment的最后一条数据，根据shareQueue从ImmutableBucket加载的情况，每次
+     * 加载一个segment以后，put这个segment最后一条数据
+     */
     private final Table<Long, Long, ImmutableBucket> snapshotSegmentLastIndexTable;
 
     private final BucketDelayedMessageIndexStats stats;
@@ -164,13 +173,11 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
 
         Map<Range<Long>, ImmutableBucket> immutableBucketMap = immutableBuckets.asMapOfRanges();
         if (immutableBucketMap.isEmpty()) {
-            log.info("[{}] Recover delayed message index bucket snapshot finish, don't find bucket snapshot",
-                    dispatcher.getName());
+            log.info("[{}] Recover delayed message index bucket snapshot finish, don't find bucket snapshot", dispatcher.getName());
             return 0;
         }
 
-        Map<Range<Long>, CompletableFuture<List<DelayedIndex>>>
-                futures = new HashMap<>(immutableBucketMap.size());
+        Map<Range<Long>, CompletableFuture<List<DelayedIndex>>> futures = new HashMap<>(immutableBucketMap.size());
         for (Map.Entry<Range<Long>, ImmutableBucket> entry : immutableBucketMap.entrySet()) {
             Range<Long> key = entry.getKey();
             ImmutableBucket immutableBucket = entry.getValue();
@@ -219,8 +226,7 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
             numberDelayedMessages.add(bucket.numberBucketDelayedMessages);
         });
 
-        log.info("[{}] Recover delayed message index bucket snapshot finish, buckets: {}, numberDelayedMessages: {}",
-                dispatcher.getName(), immutableBucketMap.size(), numberDelayedMessages.getValue());
+        log.info("[{}] Recover delayed message index bucket snapshot finish, buckets: {}, numberDelayedMessages: {}", dispatcher.getName(), immutableBucketMap.size(), numberDelayedMessages.getValue());
 
         return numberDelayedMessages.getValue();
     }
@@ -284,8 +290,7 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
                     if (ex == null) {
                         immutableBucket.setSnapshotSegments(null);
                         immutableBucket.asyncUpdateSnapshotLength();
-                        log.info("[{}] Create bucket snapshot finish, bucketKey: {}", dispatcher.getName(),
-                                immutableBucket.bucketKey());
+                        log.info("[{}] Create bucket snapshot finish, bucketKey: {}", dispatcher.getName(), immutableBucket.bucketKey());
 
                         stats.recordSuccessEvent(BucketDelayedMessageIndexStats.Type.create,
                                 System.currentTimeMillis() - startTime);
@@ -293,27 +298,24 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
                         return bucketId;
                     }
 
-                    log.error("[{}] Failed to create bucket snapshot, bucketKey: {}", dispatcher.getName(),
-                            immutableBucket.bucketKey(), ex);
+                    log.error("[{}] Failed to create bucket snapshot, bucketKey: {}", dispatcher.getName(), immutableBucket.bucketKey(), ex);
                     stats.recordFailEvent(BucketDelayedMessageIndexStats.Type.create);
 
+                    // ImmutableBucket写入失败以后，将数据写回到sharedQueue，降级为纯内存模式
                     // Put indexes back into the shared queue and downgrade to memory mode
                     synchronized (BucketDelayedDeliveryTracker.this) {
                         immutableBucket.getSnapshotSegments().ifPresent(snapshotSegments -> {
                             for (SnapshotSegment snapshotSegment : snapshotSegments) {
                                 for (DelayedIndex delayedIndex : snapshotSegment.getIndexesList()) {
-                                    sharedBucketPriorityQueue.add(delayedIndex.getTimestamp(),
-                                            delayedIndex.getLedgerId(), delayedIndex.getEntryId());
+                                    sharedBucketPriorityQueue.add(delayedIndex.getTimestamp(), delayedIndex.getLedgerId(), delayedIndex.getEntryId());
                                 }
                             }
                             immutableBucket.setSnapshotSegments(null);
                         });
 
                         immutableBucket.setCurrentSegmentEntryId(immutableBucket.lastSegmentEntryId);
-                        immutableBuckets.asMapOfRanges().remove(
-                                Range.closed(immutableBucket.startLedgerId, immutableBucket.endLedgerId));
-                        snapshotSegmentLastIndexTable.remove(lastDelayedIndex.getLedgerId(),
-                                lastDelayedIndex.getTimestamp());
+                        immutableBuckets.asMapOfRanges().remove(Range.closed(immutableBucket.startLedgerId, immutableBucket.endLedgerId));
+                        snapshotSegmentLastIndexTable.remove(lastDelayedIndex.getLedgerId(), lastDelayedIndex.getTimestamp());
                     }
                     return INVALID_BUCKET_ID;
                 });
@@ -596,6 +598,13 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
             long ledgerId = sharedBucketPriorityQueue.peekN2();
             long entryId = sharedBucketPriorityQueue.peekN3();
 
+            /*
+             * sharedQueue的数据加载自immutableBucket，因此需要在恰当的时机从immutableBucket加载数据
+             * 这个时机是：在sharedQueue中加载到immutableBucket的segment的最后一条时，尝试从bucket加载下一个segment的数据
+             * 
+             * 此处拿ledgerId、entryId从snapshotSegmentLastIndexTable取bucket，如果取到证明已经是segment的最后一条数据，需要从bucket加载新的segment
+             * snapshotSegmentLastIndexTable记录了segment最后一条数据和bucket的映射
+             */
             ImmutableBucket bucket = snapshotSegmentLastIndexTable.get(ledgerId, entryId);
             if (bucket != null && immutableBuckets.asMapOfRanges().containsValue(bucket)) {
                 // All message of current snapshot segment are scheduled, try load next snapshot segment
