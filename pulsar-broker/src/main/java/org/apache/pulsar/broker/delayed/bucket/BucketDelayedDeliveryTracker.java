@@ -324,6 +324,11 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
         }
     }
 
+    /**
+     * @param ledgerId   the ledgerId  延迟消息本身的ledgerId
+     * @param entryId    the entryId  延迟消息本身的entryId
+     * @param deliverAt the absolute timestamp at which the message should be tracked
+     */
     @Override
     public synchronized boolean addMessage(long ledgerId, long entryId, long deliverAt) {
         if (containsMessage(ledgerId, entryId)) {
@@ -351,7 +356,7 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
                             this.maxIndexesPerBucketSnapshotSegment,
                             this.sharedBucketPriorityQueue);
             
-            //
+            // 后续处理
             afterCreateImmutableBucket(immutableBucketDelayedIndexPair, createStartTime);
             
             //
