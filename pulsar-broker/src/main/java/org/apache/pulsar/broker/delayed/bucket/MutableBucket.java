@@ -68,6 +68,10 @@ class MutableBucket extends Bucket implements AutoCloseable {
 
     /**
      * 创建并持久化ImmutableBucket
+     * <p/>
+     * 额外的影响：
+     * 1、第一个segment的数据会被加入到sharedQueue
+     * 2、构造ImmutableBucket，并持久化
      * 
      * @param timeStepPerBucketSnapshotSegment 每个segment的延时时间最长跨度，默认300秒
      * @param maxIndexesPerBucketSnapshotSegment 每个segment数据量限制，-1代表无限制
@@ -135,6 +139,8 @@ class MutableBucket extends Bucket implements AutoCloseable {
 
             checkArgument(ledgerId >= startLedgerId && ledgerId <= endLedgerId);
 
+            // segmentMetadataList在第一个segment填满时会被add SnapshotSegmentMetadata
+            // 因此segmentMetadataList非空了，就是第二个segment了
             // Move first segment of bucket snapshot to sharedBucketPriorityQueue
             if (segmentMetadataList.isEmpty()) {
                 sharedQueue.add(timestamp, ledgerId, entryId);

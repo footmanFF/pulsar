@@ -292,8 +292,7 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
                         immutableBucket.asyncUpdateSnapshotLength();
                         log.info("[{}] Create bucket snapshot finish, bucketKey: {}", dispatcher.getName(), immutableBucket.bucketKey());
 
-                        stats.recordSuccessEvent(BucketDelayedMessageIndexStats.Type.create,
-                                System.currentTimeMillis() - startTime);
+                        stats.recordSuccessEvent(BucketDelayedMessageIndexStats.Type.create, System.currentTimeMillis() - startTime);
 
                         return bucketId;
                     }
