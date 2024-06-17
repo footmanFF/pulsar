@@ -240,6 +240,9 @@ class MutableBucket extends Bucket implements AutoCloseable {
         return result;
     }
 
+    /**
+     * 将截止时间以前的数据迁移到入参的队列中
+     */
     void moveScheduledMessageToSharedQueue(long cutoffTime, TripleLongPriorityQueue sharedBucketPriorityQueue) {
         while (!priorityQueue.isEmpty()) {
             long timestamp = priorityQueue.peekN1();

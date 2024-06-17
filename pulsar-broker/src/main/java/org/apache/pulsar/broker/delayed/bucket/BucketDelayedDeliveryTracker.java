@@ -339,10 +339,10 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
             return false;
         }
 
-        boolean existBucket = findImmutableBucket(ledgerId).isPresent();
+        boolean existImmutableBucket = findImmutableBucket(ledgerId).isPresent();
 
         // lastMutableBucket内数据超过限制时，创建ImmutableBucket
-        if (!existBucket && ledgerId > lastMutableBucket.endLedgerId
+        if (!existImmutableBucket && ledgerId > lastMutableBucket.endLedgerId
                 && lastMutableBucket.size() >= minIndexCountPerBucket
                 && !lastMutableBucket.isEmpty()) {
             long createStartTime = System.currentTimeMillis();
@@ -358,7 +358,7 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
             // 后续处理
             afterCreateImmutableBucket(immutableBucketDelayedIndexPair, createStartTime);
             
-            //
+            // 清空lastMutableBucket
             lastMutableBucket.resetLastMutableBucketRange();
 
             // immutableBucket数量超过限制，触发合并
@@ -367,9 +367,17 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
             }
         }
 
-        if (ledgerId < lastMutableBucket.startLedgerId || existBucket) {
-            // If (ledgerId < startLedgerId || existBucket) means that message index belong to previous bucket range,
+        /*
+         * 1、这里隐含着addMessage方法入参传进来的ledgerId是递增的。lastMutableBucket在不断的写入和重建之后，startLedgerId也是
+         * 逐渐增大的，因此ledgerId如果小于startLedgerId，那么证明这条数据应该属于之前的lastMutableBucket
+         * 
+         * 2、当前ledgerId已经存在于一个immutableBucket，也证明属于之前的lastMutableBucket
+         */
+        if (ledgerId < lastMutableBucket.startLedgerId || existImmutableBucket) {
+            // If (ledgerId < startLedgerId || existImmutableBucket) means that message index belong to previous bucket range,
             // enter sharedBucketPriorityQueue directly
+            
+            // TODO 这里直接写入到内存，难道不会丢数据吗？
             sharedBucketPriorityQueue.add(deliverAt, ledgerId, entryId);
             lastMutableBucket.putIndexBit(ledgerId, entryId);
         } else {
@@ -380,8 +388,7 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
         numberDelayedMessages++;
 
         if (log.isDebugEnabled()) {
-            log.debug("[{}] Add message {}:{} -- Delivery in {} ms ", dispatcher.getName(), ledgerId, entryId,
-                    deliverAt - clock.millis());
+            log.debug("[{}] Add message {}:{} -- Delivery in {} ms ", dispatcher.getName(), ledgerId, entryId, deliverAt - clock.millis());
         }
 
         updateTimer();
@@ -588,6 +595,7 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
 
         long cutoffTime = getCutoffTime();
 
+        // TODO 这里为什么要move？
         lastMutableBucket.moveScheduledMessageToSharedQueue(cutoffTime, sharedBucketPriorityQueue);
 
         NavigableSet<PositionImpl> positions = new TreeSet<>();
