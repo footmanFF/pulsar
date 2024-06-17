@@ -324,6 +324,9 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
     }
 
     /**
+     * 有synchronized修饰，因此sealBucketAndAsyncPersistent方法不会被并发执行
+     * 但是每条消息都加这个锁，难道不会有性能问题吗？
+     * 
      * @param ledgerId   the ledgerId  延迟消息本身的ledgerId
      * @param entryId    the entryId  延迟消息本身的entryId
      * @param deliverAt the absolute timestamp at which the message should be tracked
@@ -584,6 +587,9 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
         return this.lastMutableBucket.getBufferMemoryUsage() + sharedBucketPriorityQueue.bytesCapacity();
     }
 
+    /**
+     * synchronized修饰，因此和addMessage不会被并发调用，避免了很多并发问题
+     */
     @Override
     public synchronized NavigableSet<PositionImpl> getScheduledMessages(int maxMessages) {
         if (!checkPendingLoadDone()) {
