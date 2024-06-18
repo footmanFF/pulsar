@@ -81,9 +81,12 @@ class ImmutableBucket extends Bucket {
                         }
                     }), BucketSnapshotPersistenceException.class, MaxRetryTimes)
                     .thenApply(snapshotMetadata -> {
-                        List<SnapshotSegmentMetadata> metadataList =
-                                snapshotMetadata.getMetadataListList();
+                        List<SnapshotSegmentMetadata> metadataList = snapshotMetadata.getMetadataListList();
 
+                        /*
+                         * TODO 仅仅用cutoffTime作为条件过滤掉已经投递的数据，是否可靠？
+                         *  有没有可能到了时间，但是没有被投递掉的
+                         */
                         // Skip all already reach schedule time snapshot segments
                         int nextSnapshotEntryIndex = 0;
                         while (nextSnapshotEntryIndex < metadataList.size()
@@ -93,8 +96,7 @@ class ImmutableBucket extends Bucket {
 
                         this.setLastSegmentEntryId(metadataList.size());
                         this.recoverDelayedIndexBitMapAndNumber(nextSnapshotEntryIndex, metadataList);
-                        List<Long> firstScheduleTimestamps = metadataList.stream().map(
-                                SnapshotSegmentMetadata::getMinScheduleTimestamp).toList();
+                        List<Long> firstScheduleTimestamps = metadataList.stream().map(SnapshotSegmentMetadata::getMinScheduleTimestamp).toList();
                         this.setFirstScheduleTimestamps(firstScheduleTimestamps);
 
                         return nextSnapshotEntryIndex + 1;

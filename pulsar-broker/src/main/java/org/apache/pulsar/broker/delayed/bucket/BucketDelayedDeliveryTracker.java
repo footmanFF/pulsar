@@ -141,9 +141,7 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
         this.sharedBucketPriorityQueue = new TripleLongPriorityQueue();
         this.immutableBuckets = TreeRangeMap.create();
         this.snapshotSegmentLastIndexTable = HashBasedTable.create();
-        this.lastMutableBucket =
-                new MutableBucket(dispatcher.getName(), dispatcher.getCursor(), FutureUtil.Sequencer.create(),
-                        bucketSnapshotStorage);
+        this.lastMutableBucket = new MutableBucket(dispatcher.getName(), dispatcher.getCursor(), FutureUtil.Sequencer.create(), bucketSnapshotStorage);
         this.stats = new BucketDelayedMessageIndexStats();
         this.numberDelayedMessages = recoverBucketSnapshot();
     }
@@ -152,8 +150,7 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
         ManagedCursor cursor = this.lastMutableBucket.getCursor();
         Map<String, String> cursorProperties = cursor.getCursorProperties();
         if (MapUtils.isEmpty(cursorProperties)) {
-            log.info("[{}] Recover delayed message index bucket snapshot finish, don't find bucket snapshot",
-                    dispatcher.getName());
+            log.info("[{}] Recover delayed message index bucket snapshot finish, don't find bucket snapshot", dispatcher.getName());
             return 0;
         }
         FutureUtil.Sequencer<Void> sequencer = this.lastMutableBucket.getSequencer();
@@ -204,11 +201,9 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
                 toBeDeletedBucketMap.put(key, immutableBucket);
             } else {
                 DelayedIndex lastDelayedIndex = indexList.get(indexList.size() - 1);
-                this.snapshotSegmentLastIndexTable.put(lastDelayedIndex.getLedgerId(),
-                        lastDelayedIndex.getEntryId(), immutableBucket);
+                this.snapshotSegmentLastIndexTable.put(lastDelayedIndex.getLedgerId(), lastDelayedIndex.getEntryId(), immutableBucket);
                 for (DelayedIndex index : indexList) {
-                    this.sharedBucketPriorityQueue.add(index.getTimestamp(), index.getLedgerId(),
-                            index.getEntryId());
+                    this.sharedBucketPriorityQueue.add(index.getTimestamp(), index.getLedgerId(), index.getEntryId());
                 }
             }
         }
