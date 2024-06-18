@@ -67,6 +67,13 @@ class ImmutableBucket extends Bucket {
         return asyncLoadNextBucketSnapshotEntry(true, cutoffTimeSupplier);
     }
 
+    /**
+     * 如果isRecover为true，那么会磁盘加载snapshotMetadata，并根据segment的元数据将已经过期的segment给忽略掉
+     * 对第一个未过期的segment加载并返回
+     * 
+     * @param isRecover true: 是恢复模式
+     * @param cutoffTimeSupplier  是否过期的截止时间，目前取的是当前时间戳
+     */
     private CompletableFuture<List<DelayedIndex>> asyncLoadNextBucketSnapshotEntry(boolean isRecover, Supplier<Long> cutoffTimeSupplier) {
         final long bucketId = getAndUpdateBucketId();
         final CompletableFuture<Integer> loadMetaDataFuture;
