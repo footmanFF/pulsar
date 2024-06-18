@@ -600,8 +600,7 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
         }
 
         long cutoffTime = getCutoffTime();
-
-        // TODO 这里为什么要move？
+        
         lastMutableBucket.moveScheduledMessageToSharedQueue(cutoffTime, sharedBucketPriorityQueue);
 
         NavigableSet<PositionImpl> positions = new TreeSet<>();
