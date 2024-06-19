@@ -92,7 +92,7 @@ class ImmutableBucket extends Bucket {
 
                         /*
                          * TODO 仅仅用cutoffTime作为条件过滤掉已经投递的数据，是否可靠？
-                         *  有没有可能到了时间，但是没有被投递掉的
+                         *  比如服务宕机半小时，是不是宕机的半小时内的数据都不会再投递了？
                          */
                         // Skip all already reach schedule time snapshot segments
                         int nextSnapshotEntryIndex = 0;
